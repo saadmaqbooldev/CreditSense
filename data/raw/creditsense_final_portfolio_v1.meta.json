@@ -1,0 +1,72 @@
+{
+  "dataset_name": "creditsense_final_portfolio",
+  "version": "1.0.0",
+  "generated_at": "2026-09-05T08:41:45.902131+00:00",
+  "row_count": 15000,
+  "seed": 42,
+  "generator": "app.data_generation.generate_applicants",
+  "messy_mode": true,
+  "quality_rates": {
+    "ocr_noise_rate": 0.1,
+    "currency_format_rate": 0.25,
+    "missing_collateral_rate": 0.05
+  },
+  "schema": {
+    "applicant_id": {
+      "type": "string",
+      "nullable": false
+    },
+    "sector": {
+      "type": "string",
+      "nullable": false
+    },
+    "annual_revenue": {
+      "type": "string",
+      "nullable": false
+    },
+    "debt_to_equity": {
+      "type": "number",
+      "nullable": false
+    },
+    "revenue_growth_yoy": {
+      "type": "number",
+      "nullable": false
+    },
+    "operating_margin": {
+      "type": "number",
+      "nullable": false
+    },
+    "years_in_business": {
+      "type": "number",
+      "nullable": false
+    },
+    "late_payment_count": {
+      "type": "number",
+      "nullable": false
+    },
+    "collateral_coverage_ratio": {
+      "type": "number",
+      "nullable": true
+    },
+    "credit_limit_requested": {
+      "type": "number",
+      "nullable": false
+    },
+    "default_probability": {
+      "type": "number",
+      "nullable": false
+    },
+    "credit_officer_notes": {
+      "type": "string",
+      "nullable": false
+    },
+    "source": {
+      "type": "string",
+      "nullable": false
+    },
+    "data_quality_flags": {
+      "type": "number",
+      "nullable": false
+    }
+  }
+}

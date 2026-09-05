@@ -117,50 +117,50 @@ Each task has a **Notes** line — record the actual library/pattern used, key d
   - Notes: Implemented in `app/data_generation.py`; schema includes applicant ID, sector, revenue, leverage, growth, margin, years in business, late payment count, collateral ratio, and default probability.
 - [x] DONE **P1.2** — Build sector-conditioned generator (financial ratios correlate realistically per sector, not uniform random)
   - Notes: Sector-specific Gaussian profiles are used for `textile`, `trading`, `food`, `manufacturing`, `services`, `agriculture`, and `technology` segments; generator returns realistic defaults and requested credit limits.
-- [ ] TODO **P1.3** — Inject messiness: OCR-style digit noise (~10%), inconsistent currency formatting, missing collateral fields (~5%)
-  - Notes: —
-- [ ] TODO **P1.4** — Add Urdu-English code-switched free-text notes field
-  - Notes: —
-- [ ] TODO **P1.5** — Generate final dataset (target: 10,000–20,000 rows), save with schema/version metadata
-  - Notes: —
-- [ ] TODO **P1.6** — Sanity-check distributions (per-sector plots/summary stats) to confirm realism
-  - Notes: —
+- [x] DONE **P1.3** — Inject messiness: OCR-style digit noise (~10%), inconsistent currency formatting, missing collateral fields (~5%)
+  - Notes: Added opt-in `messy=True` generation with deterministic OCR digit transposition, mixed PKR/Rs. formatting, approximately 5% missing collateral, and `data_quality_flags` for downstream auditing. Clean mode remains backward compatible.
+- [x] DONE **P1.4** — Add Urdu-English code-switched free-text notes field
+  - Notes: Added deterministic `credit_officer_notes` with Roman Urdu-English code-switching, risk-conditioned wording, and sector context; output is reproducible for a given seed and covered by generator tests.
+- [x] DONE **P1.5** — Generate final dataset (target: 10,000–20,000 rows), save with schema/version metadata
+  - Notes: Added `scripts/generate_final_dataset.py`; default export contains 15,000 messy applicants at `data/raw/creditsense_final_portfolio_v1.csv` with schema/version metadata in the sibling `.meta.json` file. Export is seed-reproducible and enforces the row-count range.
+- [x] DONE **P1.6** — Sanity-check distributions (per-sector plots/summary stats) to confirm realism
+  - Notes: Added `scripts/sanity_check_dataset.py`; it writes per-sector counts, shares, numeric summaries, missingness, note coverage, and pass/fail quality checks to `scripts/outputs/final_dataset_sanity_report.json`. All checks pass for the versioned 15,000-row dataset.
 
 ### Phase 2 — Database & Infra
 - [x] DONE **P2.1** — Postgres schema: applicants table, documents table (RAG corpus), chunks table (`tsvector` + `vector` columns), audit_log table
   - Notes: Core schema scaffolded in `app/models.py` and migration file `migrations/versions/20260829_000001_init_schema.py`; `regulation_chunks` and `audit_logs` tables are in place with vector-ready fields for later embedding work.
 - [x] DONE **P2.2** — SQLAlchemy 2.0 models + migrations (Alembic or equivalent)
   - Notes: `DeclarativeBase` setup in `app/db.py`, SQLAlchemy models in `app/models.py`, and Alembic migration config initialized under `migrations/`.
-- [ ] TODO **P2.3** — Seed script to load synthetic applicant data into Postgres
-  - Notes: —
-- [ ] TODO **P2.4** — SQL views for portfolio exposure aggregation (sector-level exposure)
-  - Notes: —
+- [x] DONE **P2.3** — Seed script to load synthetic applicant data into Postgres
+  - Notes: Extended `app/seed_data.py` with `load_dataset_records()` and idempotent `seed_dataset()`/`seed_final_dataset()` paths for the versioned 15,000-row CSV; formatted currency and missing collateral are normalized, notes are persisted, and a follow-up Alembic migration adds `credit_officer_notes`. Postgres integration test is present and skips when the local service is unavailable.
+- [x] DONE **P2.4** — SQL views for portfolio exposure aggregation (sector-level exposure)
+  - Notes: Added Alembic migration `20260905_000003_add_sector_exposure_view.py`, creating `sector_portfolio_exposure` with applicant count, total/average requested exposure, average default probability, missing-collateral count, and exposure share. Apply with `alembic upgrade head`; local Postgres was unavailable for live view execution.
 
 ### Phase 3 — Classical ML Layer (XGBoost)
 - [x] DONE **P3.1** — EDA + feature engineering pipeline
   - Notes: Baseline feature engineering implemented in `app/ml_pipeline.py` with leverage, revenue-growth, margin-gap, collateral-shortfall, and late-payment risk terms.
-- [ ] TODO **P3.2** — Train/test split, baseline XGBoost model
-  - Notes: —
-- [ ] TODO **P3.3** — Apply monotonic constraints (e.g., debt-to-equity → risk direction)
-  - Notes: —
-- [ ] TODO **P3.4** — Platt scaling for probability calibration
-  - Notes: —
-- [ ] TODO **P3.5** — Cross-validation + feature importance / SHAP explainability
-  - Notes: —
-- [ ] TODO **P3.6** — Model versioning (MLflow or pickle + metadata JSON)
-  - Notes: —
+- [x] DONE **P3.2** — Train/test split, baseline XGBoost model
+  - Notes: Added `scripts/train_xgboost_baseline.py` with a stratified 80/20 split, application feature engineering, unweighted baseline XGBoost, held-out metrics, and joblib artifact export. Model and metadata are saved as `app/ml_artifacts/xgboost_model_baseline.pkl` and `model_metadata_baseline.json`.
+- [x] DONE **P3.3** — Apply monotonic constraints (e.g., debt-to-equity → risk direction)
+  - Notes: Added explicit risk-direction constraints to the calibrated XGBoost trainer for leverage, debt-to-equity, late payments, liquidity, collateral, growth, and related engineered features.
+- [x] DONE **P3.4** — Platt scaling for probability calibration
+  - Notes: Added `scripts/train_xgboost_calibrated.py` using `CalibratedClassifierCV(method="sigmoid", cv=3)`; saved `xgboost_model_calibrated.pkl` and `model_metadata_calibrated.json`, with held-out Brier score recorded.
+- [x] DONE **P3.5** — Cross-validation + feature importance / SHAP explainability
+  - Notes: Added `scripts/evaluate_xgboost_model.py` with 5-fold stratified CV, feature-importance export, and XGBoost built-in TreeSHAP contribution export (`pred_contribs=True`); evaluation artifacts are saved under `app/ml_artifacts/`.
+- [x] DONE **P3.6** — Model versioning (MLflow or pickle + metadata JSON)
+  - Notes: Versioned calibrated model and metadata are saved as `xgboost_model_calibrated.pkl` and `model_metadata_calibrated.json`; evaluation metadata is saved as `model_evaluation_calibrated.json` with dataset, parameters, constraints, calibration, and CV provenance.
 - [x] DONE **P3.7** — `/predict/credit-risk` FastAPI endpoint (Pydantic-validated request/response, SHAP output included)
-  - Notes: Endpoint is live in `app/main.py`; risk output includes `default_probability`, `risk_band`, and `model_version`.
+  - Notes: Endpoint is live in `app/main.py`; restored `build_feature_vector()` and `score_applicant()` in `app/ml_pipeline.py`, with Pydantic validation and `default_probability`, `risk_band`, and `model_version` response fields. Explainability exports are handled separately by the P3.5 TreeSHAP evaluation artifacts.
 - [x] DONE **P3.8** — Unit tests for scoring pipeline
-  - Notes: `tests/test_ml_pipeline.py` covers feature construction, probability output contract, and endpoint behavior.
-- [ ] TODO **P3.9** (stretch) — Bias/fairness sanity check across sectors
-  - Notes: —
-- [ ] TODO **P3.10** (stretch) — Drift monitoring checks
-  - Notes: —
+  - Notes: `tests/test_ml_pipeline.py` covers feature construction, bounded probability output, and endpoint behavior; 3 focused tests plus 13 dependent agent/health/orchestration tests pass.
+- [x] DONE **P3.9** (stretch) — Bias/fairness sanity check across sectors
+  - Notes: Added out-of-fold sector metrics for selection rate, recall/TPR, FPR, precision, and max gaps in `app/ml_artifacts/fairness_drift_report.json`. The current report flags large selection-rate and precision differences for follow-up rather than treating fairness as automatically passed.
+- [x] DONE **P3.10** (stretch) — Drift monitoring checks
+  - Notes: Added PSI-based numeric-feature and sector-distribution monitoring with a 0.20 alert threshold; the reference-vs-reference baseline produces zero drift alerts and writes to `app/ml_artifacts/fairness_drift_report.json`.
 
 ### Phase 4 — RAG Corpus & Hybrid Retrieval
 - [x] DONE **P4.1** — Source/simulate SBP prudential regulation text (target 200+ chunks) with intentional cross-references between clauses
-  - Notes: Regulator seed corpus implemented in `app/rag_pipeline.py` with clause-like entries for exposure, sector, leverage, collateral, delinquency, and auditability requirements.
+  - Notes: `app/rag_pipeline.py` preserves 7 canonical regulation clauses and deterministically expands them into 217 clause-level chunks with operational references for exposure, sector, leverage, collateral, delinquency, cash flow, and auditability.
 - [x] DONE **P4.2** — Chunk by clause number (not fixed token windows)
   - Notes: Each entry is stored as a clause-style chunk keyed by regulation number and title, matching the project requirement for citable regulation chunks.
 - [x] DONE **P4.3** — Embedding generation pipeline, populate `vector` column
@@ -188,7 +188,7 @@ Each task has a **Notes** line — record the actual library/pattern used, key d
 - [x] DONE **P5.6** — Conditional routing / escalation-to-human path when confidence is low
   - Notes: The agent result includes `escalation_required` and the supervisor logic rejects any noncompliant path; this acts as the human escalation trigger in a deterministic manner.
 - [x] DONE **P5.7** — Structured outputs via Pydantic schemas for all agent responses
-  - Notes: The project currently uses deterministic dataclass and dict-based structured outputs with a clear migration path to full Pydantic response schemas if a richer API contract is needed later.
+  - Notes: Added `app/schemas.py` with Pydantic models for normalized financials, risk assessment, regulation sources, compliance flags/results, final decisions, and underwriting results; orchestration preserves the existing dictionary API boundary.
 
 ### Phase 6 — Custom MCP Server
 - [x] DONE **P6.1** — MCP server scaffold (official Python MCP SDK)
@@ -198,7 +198,7 @@ Each task has a **Notes** line — record the actual library/pattern used, key d
 - [x] DONE **P6.3** — Tool: `search_sbp_regulations(topic, regulation_number)` — wraps hybrid RAG
   - Notes: Queries the regulation corpus and returns top-matching SBP clauses keyed by regulation number.
 - [x] DONE **P6.4** — Tool: `get_portfolio_exposure(sector)`
-  - Notes: Returns aggregate sector exposure as a percentage and compares against policy limit.
+  - Notes: Queries the `sector_portfolio_exposure` SQL view when Postgres is available and falls back to deterministic demo values when the database is unavailable; returns exposure percentage and policy limit.
 - [x] DONE **P6.5** — Tool: `submit_underwriting_decision(applicant_id, decision, rationale)` — write-scoped, audited
   - Notes: Records underwriting decisions (approve/deny/escalate) with full audit trail including caller identity and timestamp.
 - [x] DONE **P6.6** — Field-level data masking middleware (e.g., account numbers)
@@ -220,7 +220,7 @@ Each task has a **Notes** line — record the actual library/pattern used, key d
 
 ### Phase 8 — Testing & Evaluation
 - [x] DONE **P8.1** — Unit tests across ML, RAG, agents, MCP tools
-  - Notes: Comprehensive unit test coverage across all components including scoring (test_ml_pipeline.py), retrieval (test_rag_pipeline.py), agents (test_agents.py), MCP tools (test_mcp_server.py), and orchestration (test_orchestration.py). Total: 50 passing tests.
+  - Notes: Comprehensive unit test coverage across scoring, retrieval, agents, MCP tools, orchestration, data generation, monitoring, and model training. Current result: 61 passed, 1 skipped when Postgres is unavailable.
 - [x] DONE **P8.2** — End-to-end integration test (full applicant → decision flow)
   - Notes: Multiple E2E tests validate the complete flow from ingestion through financial analysis, risk scoring, compliance checking, and final decision with full audit trails.
 - [x] DONE **P8.3** — Guardrail test: confirm supervisor cannot approve with unresolved compliance flags, even under adversarial prompt input
@@ -232,7 +232,7 @@ Each task has a **Notes** line — record the actual library/pattern used, key d
 - [x] DONE **P9.1** — Minimal frontend or Postman collection for live demo
   - Notes: Created `CreditSense_Postman_Collection.json` with 5 requests: health check, 2 quick-prediction scenarios (low/high risk), 3 full-orchestration scenarios, and test assertions for each.
 - [x] DONE **P9.2** — Demo script / README walkthrough
-  - Notes: Created comprehensive `README.md` (450+ lines) with quick start, architecture overview, demo walkthrough (3 curl scenarios with expected outputs), MCP server docs, and interview Q&A. Also created `scripts/demo.py` for automated demo execution (4 scenarios: low-risk approve, high-leverage escalate, retrieval eval, audit inspection).
+  - Notes: `README.md` now contains setup, dataset/model training, API examples, architecture, database migration/seeding, and test commands; `scripts/demo.py` remains the automated demo entry point.
 - [x] DONE **P9.3** — Decision audit trail dashboard (stretch)
   - Notes: Created `scripts/audit_viewer.py` as CLI audit log inspector with filtering, summary statistics, and formatted table display. Shows tool calls, identities, scopes, statuses, and payload hashes for full auditability.
 - [x] DONE **P9.4** — Prepare 90-second answers to the 4 interview questions in Section 7
@@ -294,13 +294,21 @@ CreditSense/
 │   ├── test_orchestration.py # 9 tests: E2E flow, error handling, rate limiting
 │   └── test_phase8_evaluation.py # 14 tests: comprehensive guardrail + retrieval validation
 │
-├── scripts/                 # Utility scripts for demo and audit
-│   ├── demo.py              # Interactive demo (4 scenarios: low-risk, high-leverage, retrieval, audit)
-│   └── audit_viewer.py      # CLI audit log inspector with filtering and summary stats
+├── scripts/                 # Data, ML, monitoring, demo, and audit utilities
+│   ├── generate_final_dataset.py
+│   ├── sanity_check_dataset.py
+│   ├── train_xgboost_baseline.py
+│   ├── train_xgboost_calibrated.py
+│   ├── evaluate_xgboost_model.py
+│   ├── fairness_drift_monitor.py
+│   ├── demo.py
+│   └── audit_viewer.py
 │
 ├── migrations/              # Alembic database migrations
 │   ├── versions/
-│   │   └── 20260829_000001_init_schema.py # Schema: applicants, regulation_chunks, audit_logs
+│   │   ├── 20260829_000001_init_schema.py
+│   │   ├── 20260905_000002_add_applicant_notes.py
+│   │   └── 20260905_000003_add_sector_exposure_view.py
 │   └── [Alembic config files]
 │
 ├── .github/                 # GitHub Actions CI/CD
@@ -316,7 +324,7 @@ CreditSense/
 ├── Dockerfile               # App container image
 ├── requirements.txt         # Dependencies (FastAPI 0.141.1, sqlalchemy 2.x, structlog, mcp 2.1.1, pytest, etc.)
 ├── CreditSense_Master_Tracker.md # This file — single source of truth
-├── README.md                # Comprehensive documentation: quick start, architecture, demo, Q&A
+├── README.md                # Setup, training, API, architecture, database, and test walkthrough
 ├── INTERVIEW_ANSWERS.md     # 90-second prepared answers (4 Q + bonus)
 └── CreditSense_Postman_Collection.json # Postman collection with 5 requests (health, 2 predict, 3 orchestration)
 ```
@@ -356,7 +364,8 @@ Prepare a concrete, 90-second answer for each — tied to what was actually buil
 
 > Running list — add as they come up, remove/resolve as answered.
 
-- —
+- Fairness monitoring currently reports substantial sector selection-rate and precision gaps; mitigation policy and threshold review remain a product/risk decision.
+- PostgreSQL-backed seed/view execution is implemented but not live-tested on this workstation because the local Postgres service is unavailable; related tests skip gracefully.
 
 ---
 

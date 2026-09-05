@@ -1,22 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any
 
 from app.ml_pipeline import score_applicant
 from app.rag_pipeline import build_regulation_chunks, retrieve_relevant_chunks
-
-
-@dataclass
-class NormalizedFinancials:
-    annual_revenue: float
-    debt_to_equity: float
-    revenue_growth_yoy: float
-    operating_margin: float
-    years_in_business: int
-    late_payment_count: int
-    collateral_coverage_ratio: float
-    raw_notes: str = ""
+from app.schemas import ComplianceResult, FinalDecision, NormalizedFinancials, RiskAssessment
 
 
 class FinancialAnalystAgent:
@@ -48,15 +36,15 @@ class RiskScoringAgent:
         else:
             risk_band = "low"
 
-        return {
-            "default_probability": round(score, 6),
-            "risk_band": risk_band,
-            "narrative": (
+        return RiskAssessment(
+            default_probability=round(score, 6),
+            risk_band=risk_band,
+            narrative=(
                 f"This applicant sits in the {risk_band} risk band with an estimated default "
                 f"probability of {score:.2%}."
             ),
-            "model_version": "baseline-v1",
-        }
+            model_version="baseline-v1",
+        ).model_dump()
 
 
 class ComplianceAgent:
@@ -78,7 +66,10 @@ class ComplianceAgent:
 
         flags: list[dict[str, Any]] = []
         if float(applicant.get("debt_to_equity", 0.0) or 0.0) > 2.0:
-            source = matches[0] if matches else self.regulation_chunks[0]
+            source = next(
+                (chunk for chunk in self.regulation_chunks if chunk["regulation_number"] == "R-12"),
+                matches[0] if matches else self.regulation_chunks[0],
+            )
             flags.append(
                 {
                     "rule_id": source["regulation_number"],
@@ -89,7 +80,10 @@ class ComplianceAgent:
                 }
             )
         if float(applicant.get("late_payment_count", 0.0) or 0.0) >= 3:
-            source = next((m for m in matches if m['regulation_number'] == 'R-14'), self.regulation_chunks[0])
+            source = next(
+                (chunk for chunk in self.regulation_chunks if chunk["regulation_number"] == "R-14"),
+                self.regulation_chunks[0],
+            )
             flags.append(
                 {
                     "rule_id": source["regulation_number"],
@@ -100,7 +94,10 @@ class ComplianceAgent:
                 }
             )
         if float(applicant.get("collateral_coverage_ratio", 0.0) or 0.0) < 1.0:
-            source = next((m for m in matches if m['regulation_number'] == 'R-9'), self.regulation_chunks[0])
+            source = next(
+                (chunk for chunk in self.regulation_chunks if chunk["regulation_number"] == "R-9"),
+                self.regulation_chunks[0],
+            )
             flags.append(
                 {
                     "rule_id": source["regulation_number"],
@@ -112,12 +109,12 @@ class ComplianceAgent:
             )
 
         escalation_required = len(flags) > 0
-        return {
-            "flags": flags,
-            "escalation_required": escalation_required,
-            "source_count": len(matches),
-            "query": query,
-        }
+        return ComplianceResult(
+            flags=flags,
+            escalation_required=escalation_required,
+            source_count=len(matches),
+            query=query,
+        ).model_dump()
 
 
 class UnderwritingSupervisorAgent:
@@ -138,10 +135,10 @@ class UnderwritingSupervisorAgent:
             "Any active rule breach blocks approval."
         ) if not approved else "All underwriting checks passed under the strict guardrail."
 
-        return {
-            "approved": approved,
-            "escalation_required": not approved,
-            "rationale": rationale,
-            "risk_band": risk_band,
-            "compliance_flags_count": len(compliance_flags),
-        }
+        return FinalDecision(
+            approved=approved,
+            escalation_required=not approved,
+            rationale=rationale,
+            risk_band=risk_band,
+            compliance_flags_count=len(compliance_flags),
+        ).model_dump()

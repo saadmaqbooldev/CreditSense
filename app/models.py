@@ -21,6 +21,7 @@ class Applicant(Base):
     collateral_coverage_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
     credit_limit_requested: Mapped[float | None] = mapped_column(Float, nullable=True)
     default_probability: Mapped[float | None] = mapped_column(Float, nullable=True)
+    credit_officer_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     source: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 

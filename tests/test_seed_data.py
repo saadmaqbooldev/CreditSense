@@ -3,7 +3,17 @@ from sqlalchemy import text
 
 from app.db import SessionLocal
 from app.models import Applicant
-from app.seed_data import seed_applicants
+from app.seed_data import load_dataset_records, seed_applicants
+
+
+def test_load_dataset_records_normalizes_final_csv() -> None:
+    records = load_dataset_records()
+
+    assert len(records) == 15_000
+    assert records[0]["applicant_id"].startswith("APP-")
+    assert isinstance(records[0]["annual_revenue"], float)
+    assert any(record["collateral_coverage_ratio"] is None for record in records)
+    assert all(record["credit_officer_notes"] for record in records)
 
 
 def test_seed_applicants_persists_records() -> None:

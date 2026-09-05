@@ -8,8 +8,10 @@ from datetime import datetime
 from typing import Any
 
 import structlog
+from sqlalchemy import text
 
 from app.config import get_settings
+from app.db import SessionLocal
 from app.rag_pipeline import build_regulation_chunks, retrieve_relevant_chunks
 from app.ml_pipeline import score_applicant
 
@@ -137,6 +139,20 @@ def get_portfolio_exposure(sector: str, identity: str, api_key: str | None) -> d
     payload = {"sector": sector}
     log_audit_entry("get_portfolio_exposure", identity, payload, "read:applicants")
 
+    sector_key = sector.lower()
+    exposure_share = None
+    try:
+        with SessionLocal() as session:
+            exposure_share = session.execute(
+                text(
+                    "SELECT exposure_share FROM sector_portfolio_exposure "
+                    "WHERE LOWER(sector) = :sector"
+                ),
+                {"sector": sector_key},
+            ).scalar_one_or_none()
+    except Exception as exc:
+        logger.warning("portfolio_exposure_view_unavailable", error=str(exc))
+
     sector_exposure = {
         "manufacturing": 0.28,
         "retail": 0.22,
@@ -144,10 +160,11 @@ def get_portfolio_exposure(sector: str, identity: str, api_key: str | None) -> d
         "services": 0.20,
         "other": 0.12,
     }
+    exposure_pct = float(exposure_share) if exposure_share is not None else sector_exposure.get(sector_key, 0.0)
 
     return {
         "sector": sector,
-        "exposure_pct": sector_exposure.get(sector.lower(), 0.0),
+        "exposure_pct": exposure_pct,
         "exposure_limit_pct": 0.35,
     }
 

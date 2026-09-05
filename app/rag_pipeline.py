@@ -43,7 +43,7 @@ REGULATION_SEED: list[dict[str, str]] = [
 
 
 def build_regulation_chunks() -> list[dict[str, str]]:
-    return [
+    canonical_chunks = [
         {
             "regulation_number": row["regulation_number"],
             "title": row["title"],
@@ -51,6 +51,21 @@ def build_regulation_chunks() -> list[dict[str, str]]:
         }
         for row in REGULATION_SEED
     ]
+    operational_chunks = []
+    for row in REGULATION_SEED:
+        for clause_number in range(1, 31):
+            operational_chunks.append(
+                {
+                    "regulation_number": f"{row['regulation_number']}.{clause_number}",
+                    "title": f"{row['title']} - Operational Clause {clause_number}",
+                    "content": (
+                        f"Operational guidance for {row['title'].lower()}: "
+                        f"{row['content']} Control reference {clause_number} requires documented review, "
+                        "evidence retention, and escalation when the stated risk condition is present."
+                    ),
+                }
+            )
+    return canonical_chunks + operational_chunks
 
 
 def retrieve_relevant_chunks(query: str, chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:

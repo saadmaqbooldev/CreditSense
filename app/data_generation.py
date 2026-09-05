@@ -114,7 +114,81 @@ def _sector_weighted_choice(rng: random.Random) -> str:
     return rng.choices(list(weights.keys()), weights=list(weights.values()), k=1)[0]
 
 
-def generate_applicants(n: int = 1000, seed: int | None = None) -> list[dict]:
+def _transpose_digits(value: float, rng: random.Random) -> str:
+    """Return a monetary value with two adjacent digits transposed."""
+    value_text = f"{value:.2f}"
+    digit_positions = [index for index, character in enumerate(value_text) if character.isdigit()]
+    swap_index = rng.randrange(len(digit_positions) - 1)
+    first_position = digit_positions[swap_index]
+    second_position = digit_positions[swap_index + 1]
+    value_characters = list(value_text)
+    value_characters[first_position], value_characters[second_position] = (
+        value_characters[second_position],
+        value_characters[first_position],
+    )
+    return "".join(value_characters)
+
+
+def _format_currency(value: float, rng: random.Random) -> str:
+    """Return a monetary value in one of the source-format variants."""
+    formats = (
+        "PKR {value:,.2f}",
+        "Rs. {value:,.2f}",
+        "{value:,.2f}",
+        "PKR {value:.2f}",
+    )
+    return rng.choice(formats).format(value=value)
+
+
+def _credit_officer_note(
+    sector: str,
+    debt_to_equity: float,
+    late_payments: int,
+    revenue_growth: float,
+    rng: random.Random,
+) -> str:
+    """Create a deterministic Roman Urdu-English underwriting note."""
+    if late_payments >= 3 or debt_to_equity >= 2.5:
+        templates = (
+            "Client ka cash flow pressure mein hai; repayment history needs close review.",
+            "Business ka leverage high hai aur late payments hain; collateral verification required.",
+        )
+    elif revenue_growth < 0:
+        templates = (
+            "Client ki sales decline ho rahi hain; working capital plan needs validation.",
+            "Revenue growth negative hai, is liye bank statement trend review karna hoga.",
+        )
+    else:
+        templates = (
+            "Client ka cash flow stable hai; bank statements support the requested facility.",
+            "Business ki performance theek hai; routine documentation and sector checks required.",
+        )
+
+    return f"{rng.choice(templates)} Sector: {sector}."
+
+
+def generate_applicants(
+    n: int = 1000,
+    seed: int | None = None,
+    *,
+    messy: bool = False,
+    ocr_noise_rate: float = 0.10,
+    currency_format_rate: float = 0.25,
+    missing_collateral_rate: float = 0.05,
+) -> list[dict]:
+    """Generate sector-conditioned applicants with optional source-data messiness.
+
+    Messy mode simulates OCR digit transposition, mixed PKR/Rs. formatting, and
+    missing collateral fields while retaining flags for downstream auditing.
+    """
+    for rate_name, rate in (
+        ("ocr_noise_rate", ocr_noise_rate),
+        ("currency_format_rate", currency_format_rate),
+        ("missing_collateral_rate", missing_collateral_rate),
+    ):
+        if not 0.0 <= rate <= 1.0:
+            raise ValueError(f"{rate_name} must be between 0 and 1")
+
     rng = random.Random(seed)
     records: list[dict] = []
 
@@ -157,8 +231,35 @@ def generate_applicants(n: int = 1000, seed: int | None = None) -> list[dict]:
             "collateral_coverage_ratio": round(collateral_coverage, 4),
             "credit_limit_requested": round(credit_limit_requested, 2),
             "default_probability": round(default_probability, 6),
+            "credit_officer_notes": _credit_officer_note(
+                sector,
+                debt_to_equity,
+                late_payments,
+                revenue_growth,
+                rng,
+            ),
             "source": "synthetic",
         }
+
+        if messy:
+            quality_flags: list[str] = []
+            monetary_fields = ("annual_revenue", "credit_limit_requested")
+
+            if rng.random() < ocr_noise_rate:
+                field = rng.choice(monetary_fields)
+                record[field] = _transpose_digits(record[field], rng)
+                quality_flags.append(f"ocr_digit_noise:{field}")
+
+            for field in monetary_fields:
+                if rng.random() < currency_format_rate and isinstance(record[field], float):
+                    record[field] = _format_currency(record[field], rng)
+                    quality_flags.append(f"currency_format:{field}")
+
+            if rng.random() < missing_collateral_rate:
+                record["collateral_coverage_ratio"] = None
+                quality_flags.append("missing_collateral")
+
+            record["data_quality_flags"] = quality_flags
         records.append(record)
 
     return records

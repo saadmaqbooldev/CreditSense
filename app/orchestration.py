@@ -37,13 +37,14 @@ def orchestrate_underwriting(
         analyst = FinancialAnalystAgent()
         normalized = analyst.normalize_financials(applicant_data)
         logger.info("financial_analysis_complete", applicant_id=applicant_id, years=normalized.years_in_business)
+        normalized_data = normalized.model_dump()
 
         scorer = RiskScoringAgent()
-        risk_result = scorer.assess(normalized.__dict__)
+        risk_result = scorer.assess(normalized_data)
         logger.info("risk_scoring_complete", applicant_id=applicant_id, risk_band=risk_result["risk_band"])
 
         compliance = ComplianceAgent()
-        compliance_result = compliance.analyze(normalized.__dict__)
+        compliance_result = compliance.analyze(normalized_data)
         logger.info("compliance_check_complete", applicant_id=applicant_id, flags_count=len(compliance_result["flags"]))
 
         supervisor = UnderwritingSupervisorAgent()

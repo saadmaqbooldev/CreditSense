@@ -6,3 +6,12 @@ __pycache__/
 .pytest_cache/
 *.db
 *.sqlite3
+
+node_modules/
+frontend/node_modules/
+.next/
+frontend/.next/
+
+app/ml_artifacts/
+data/
+scripts/outputs/

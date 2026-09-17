@@ -41,7 +41,6 @@ REGULATION_SEED: list[dict[str, str]] = [
     },
 ]
 
-
 def build_regulation_chunks() -> list[dict[str, str]]:
     canonical_chunks = [
         {
